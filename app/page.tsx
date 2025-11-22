@@ -1,118 +1,93 @@
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent } from "@/components/ui/card"
-import { ArrowDownIcon, ArrowUpIcon, Wallet } from "lucide-react"
 import { redirect } from "next/navigation"
+import { DailyDashboard } from "@/components/daily-dashboard"
+import { YesterdayRecap } from "@/components/yesterday-recap"
+import { format, subDays } from "date-fns"
+import { Settings2 } from "lucide-react"
 import Link from "next/link"
-import { SmartInsights } from "@/components/smart-insights"
 
 export default async function Home() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  // Get user profile
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
 
-  if (!user) {
-    redirect("/login")
-  }
+  // Dates
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+  
+  const yesterday = subDays(today, 1)
+  const yesterdayStr = yesterday.toISOString().split('T')[0]
 
-  const { data: transactions } = await supabase
-    .from("transactions")
-    .select("*")
+  // 1. Fetch Today's Data
+  const { data: dailyBudget } = await supabase
+    .from("daily_budgets")
+    .select("amount")
     .eq("user_id", user.id)
+    .eq("date", todayStr)
+    .single()
+
+  // Fetch Today's Transactions (00:00 - 23:59)
+  const { data: todayTransactions } = await supabase
+    .from("transactions")
+    .select(`*, categories (name, color)`)
+    .eq("user_id", user.id)
+    .gte("date", `${todayStr}T00:00:00`)
+    .lte("date", `${todayStr}T23:59:59`)
     .order("date", { ascending: false })
 
-  // Fetch categories for insights
-  const { data: categories } = await supabase.from("categories").select("*").eq("user_id", user.id)
+  // 2. Fetch Yesterday's Data (For the Recap)
+  const { data: yesterdayBudget } = await supabase
+    .from("daily_budgets")
+    .select("amount")
+    .eq("user_id", user.id)
+    .eq("date", yesterdayStr)
+    .single()
 
-  const income = transactions?.filter((t) => t.type === "income").reduce((sum, t) => sum + Number(t.amount), 0) || 0
+  const { data: yesterdayTransactions } = await supabase
+    .from("transactions")
+    .select("amount, type")
+    .eq("user_id", user.id)
+    .gte("date", `${yesterdayStr}T00:00:00`)
+    .lte("date", `${yesterdayStr}T23:59:59`)
 
-  const expenses = transactions?.filter((t) => t.type === "expense").reduce((sum, t) => sum + Number(t.amount), 0) || 0
-
-  const balance = income - expenses
+  const yesterdaySpent = yesterdayTransactions
+    ?.filter(t => t.type === 'expense')
+    .reduce((sum, t) => sum + Number(t.amount), 0) || 0
 
   return (
-    <div className="flex flex-col h-full pb-20">
-      <header className="px-6 pt-12 pb-6 bg-blue-600 text-white rounded-b-3xl shadow-md">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <p className="text-blue-100 text-sm">Total Balance</p>
-            <h1 className="text-4xl font-bold mt-1">₱{balance.toFixed(2)}</h1>
-          </div>
-          <div className="bg-blue-500 p-2 rounded-full bg-opacity-30">
-            <Wallet className="h-6 w-6 text-white" />
-          </div>
+    <div className="min-h-screen bg-gray-50/50 pb-24">
+      {/* Daily Header */}
+      <header className="bg-white border-b px-6 pt-12 pb-4 mb-6 flex justify-between items-end">
+        <div>
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-wider">
+            {format(today, "EEEE")}
+          </p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {format(today, "MMM d")}
+          </h1>
         </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-blue-500 bg-opacity-30 rounded-xl p-3 flex items-center space-x-3">
-            <div className="bg-white p-1.5 rounded-full">
-              <ArrowDownIcon className="h-4 w-4 text-green-500" />
-            </div>
-            <div>
-              <p className="text-xs text-blue-100">Income</p>
-              <p className="font-semibold">₱{income.toFixed(2)}</p>
-            </div>
+        {/* Quick link to settings or monthly view if needed */}
+        <Link href="/budget">
+          <div className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
+            <Settings2 className="h-5 w-5 text-gray-600" />
           </div>
-          <div className="bg-blue-500 bg-opacity-30 rounded-xl p-3 flex items-center space-x-3">
-            <div className="bg-white p-1.5 rounded-full">
-              <ArrowUpIcon className="h-4 w-4 text-red-500" />
-            </div>
-            <div>
-              <p className="text-xs text-blue-100">Expenses</p>
-              <p className="font-semibold">₱{expenses.toFixed(2)}</p>
-            </div>
-          </div>
-        </div>
+        </Link>
       </header>
 
-      <div className="px-6 py-6 flex-1">
-        {transactions && categories && <SmartInsights transactions={transactions} categories={categories} />}
+      <div className="px-6">
+        {/* Block 1: Yesterday's Scorecard */}
+        <YesterdayRecap 
+          spent={yesterdaySpent} 
+          budget={yesterdayBudget?.amount || null} 
+        />
 
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-gray-800">Recent Transactions</h2>
-          <Link href="/transactions" className="text-blue-600 text-sm font-medium">
-            See All
-          </Link>
-        </div>
-
-        <div className="space-y-4">
-          {transactions && transactions.length > 0 ? (
-            transactions.slice(0, 5).map((transaction) => (
-              <Link href={`/transactions/${transaction.id}/edit`} key={transaction.id} className="block">
-                <Card className="shadow-sm border-0 bg-white hover:bg-gray-50 transition-colors">
-                  <CardContent className="p-4 flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`p-2 rounded-full ${transaction.type === "income" ? "bg-green-100" : "bg-red-100"}`}
-                      >
-                        {transaction.type === "income" ? (
-                          <ArrowDownIcon className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <ArrowUpIcon className="h-4 w-4 text-red-600" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{transaction.description}</p>
-                        <p className="text-xs text-gray-500">{new Date(transaction.date).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                    <span
-                      className={`font-semibold ${transaction.type === "income" ? "text-green-600" : "text-red-600"}`}
-                    >
-                      {transaction.type === "income" ? "+" : "-"}₱{Number(transaction.amount).toFixed(2)}
-                    </span>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))
-          ) : (
-            <Card className="shadow-sm border-0 bg-gray-50">
-              <CardContent className="p-4 flex justify-center text-gray-500 py-8">No transactions yet</CardContent>
-            </Card>
-          )}
-        </div>
+        {/* Block 2: Today's Main Dashboard */}
+        <DailyDashboard 
+          date={todayStr} 
+          transactions={todayTransactions || []} 
+          initialBudget={dailyBudget?.amount || null} 
+        />
       </div>
     </div>
   )
