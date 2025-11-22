@@ -8,17 +8,6 @@ import { CsvExportButton } from "@/components/csv-export-button"
 export default async function TransactionsPage() {
   const supabase = await createClient()
 
-  const { data: transactions } = await supabase
-    .from("transactions")
-    .select(`
-      *,
-      categories (
-        name
-      )
-    `) // Update select to get category name
-    .eq("user_id", user.id)
-    .order("date", { ascending: false })
-
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -27,9 +16,15 @@ export default async function TransactionsPage() {
     redirect("/login")
   }
 
+  // We fetch the transactions AND join the categories table to get the name
   const { data: transactions } = await supabase
     .from("transactions")
-    .select("*")
+    .select(`
+      *,
+      categories (
+        name
+      )
+    `)
     .eq("user_id", user.id)
     .order("date", { ascending: false })
 
@@ -51,7 +46,9 @@ export default async function TransactionsPage() {
   )
 
   return (
-    <div className="flex items-center justify-between mb-6">
+    <div className="min-h-screen bg-gray-50 p-4 pb-20">
+      {/* New Header with Export Button */}
+      <div className="flex items-center justify-between mb-6">
         <div className="flex items-center">
           <Link href="/" className="p-2 -ml-2 text-gray-500 hover:text-gray-900">
             <ArrowLeft className="h-5 w-5" />
@@ -61,6 +58,7 @@ export default async function TransactionsPage() {
         <CsvExportButton data={transactions || []} />
       </div>
 
+      {/* Transaction List */}
       <div className="space-y-6">
         {groupedTransactions && Object.keys(groupedTransactions).length > 0 ? (
           Object.entries(groupedTransactions).map(([date, dayTransactions]) => (
