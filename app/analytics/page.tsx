@@ -1,26 +1,28 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { ExpensePieChart } from "@/components/charts/expense-pie-chart"
-import { MonthlyBarChart } from "@/components/charts/monthly-bar-chart"
+import { AnalyticsDashboard } from "@/components/analytics-dashboard" // Import the new component
 import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 
 export default async function AnalyticsPage() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect("/login")
-  }
+  if (!user) redirect("/login")
 
-  // Fetch all transactions
+  // Fetch ALL transactions (let the client filter them)
+  // We fetch specific fields to keep the payload light
   const { data: transactions } = await supabase
     .from("transactions")
     .select(`
-      *,
+      id,
+      amount,
+      type,
+      date,
+      category_id,
+      description,
       categories (
         name,
         color
@@ -29,30 +31,21 @@ export default async function AnalyticsPage() {
     .eq("user_id", user.id)
     .order("date", { ascending: true })
 
-  // Process data for Pie Chart (Expenses by Category)
+  // Prepare data for the Pie Chart (Still useful to keep separate)
   const expensesByCategory: Record<string, { amount: number; fill: string }> = {}
-  const chartColors = [
-    "var(--color-chart-1)",
-    "var(--color-chart-2)",
-    "var(--color-chart-3)",
-    "var(--color-chart-4)",
-    "var(--color-chart-5)",
-  ]
+  // Simple color palette for pie chart
+  const pieColors = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#a855f7", "#ec4899"]
 
   transactions
     ?.filter((t) => t.type === "expense")
     .forEach((t, index) => {
       const categoryName = t.categories?.name || "Uncategorized"
-      // Use category color if available (mapped to tailwind class usually, so needs mapping or fallback)
-      // For simplicity, we will assign chart colors cyclically if no specific color mapping logic exists
-      // Since categories.color is a tailwind class like "bg-red-500", we can't use it directly in recharts fill.
-      // So we will use the chart theme colors.
-
+      
       if (!expensesByCategory[categoryName]) {
         expensesByCategory[categoryName] = {
           amount: 0,
-          // Assign a color from the palette based on the number of categories already found
-          fill: chartColors[Object.keys(expensesByCategory).length % chartColors.length],
+          // Use the index to pick a color from our palette
+          fill: pieColors[Object.keys(expensesByCategory).length % pieColors.length],
         }
       }
       expensesByCategory[categoryName].amount += Number(t.amount)
@@ -66,30 +59,6 @@ export default async function AnalyticsPage() {
     }))
     .sort((a, b) => b.amount - a.amount)
 
-  // Process data for Bar Chart (Monthly Income vs Expense)
-  const monthlyData: Record<string, { income: number; expense: number }> = {}
-
-  transactions?.forEach((t) => {
-    const date = new Date(t.date)
-    const monthKey = date.toLocaleString("default", { month: "short", year: "numeric" }) // e.g., "Jan 2024"
-
-    if (!monthlyData[monthKey]) {
-      monthlyData[monthKey] = { income: 0, expense: 0 }
-    }
-
-    if (t.type === "income") {
-      monthlyData[monthKey].income += Number(t.amount)
-    } else {
-      monthlyData[monthKey].expense += Number(t.amount)
-    }
-  })
-
-  const barChartData = Object.entries(monthlyData).map(([month, { income, expense }]) => ({
-    month,
-    income,
-    expense,
-  }))
-
   return (
     <div className="min-h-screen bg-gray-50 p-4 pb-24">
       <div className="flex items-center mb-6">
@@ -100,7 +69,10 @@ export default async function AnalyticsPage() {
       </div>
 
       <div className="space-y-6">
-        <MonthlyBarChart data={barChartData} />
+        {/* The New Interactive Dashboard */}
+        <AnalyticsDashboard transactions={transactions || []} />
+
+        {/* Existing Pie Chart */}
         <ExpensePieChart data={pieChartData} />
       </div>
     </div>
