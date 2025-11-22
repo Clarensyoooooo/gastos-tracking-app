@@ -3,9 +3,21 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ArrowDownIcon, ArrowUpIcon, ArrowLeft } from "lucide-react"
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import { CsvExportButton } from "@/components/csv-export-button"
 
 export default async function TransactionsPage() {
   const supabase = await createClient()
+
+  const { data: transactions } = await supabase
+    .from("transactions")
+    .select(`
+      *,
+      categories (
+        name
+      )
+    `) // Update select to get category name
+    .eq("user_id", user.id)
+    .order("date", { ascending: false })
 
   const {
     data: { user },
@@ -39,12 +51,14 @@ export default async function TransactionsPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 pb-20">
-      <div className="flex items-center mb-6">
-        <Link href="/" className="p-2 -ml-2 text-gray-500 hover:text-gray-900">
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <h1 className="text-xl font-bold flex-1 text-center mr-3">All Transactions</h1>
+    <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center">
+          <Link href="/" className="p-2 -ml-2 text-gray-500 hover:text-gray-900">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="text-xl font-bold ml-2">All Transactions</h1>
+        </div>
+        <CsvExportButton data={transactions || []} />
       </div>
 
       <div className="space-y-6">

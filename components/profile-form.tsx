@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, LogOut, User, Mail, AlertCircle } from "lucide-react"
 import { AvatarUpload } from "@/components/avatar-upload"
+import { ModeToggle } from "@/components/mode-toggle"
 
 type Profile = {
   id: string
@@ -157,6 +158,22 @@ export function ProfileForm({ user, profile }: { user: any; profile: Profile | n
         </CardContent>
       </Card>
 
+            <Card className="border-0 shadow-sm">
+        <CardHeader>
+          <CardTitle>Appearance</CardTitle>
+          <CardDescription>Customize how the app looks on your device</CardDescription>
+        </CardHeader>
+        <CardContent className="flex items-center justify-between">
+          <div className="space-y-1">
+            <Label>Theme</Label>
+            <div className="text-sm text-gray-500">
+              Select your preferred color theme
+            </div>
+          </div>
+          <ModeToggle />
+        </CardContent>
+      </Card>
+      
       <div className="px-4">
         <Button variant="destructive" className="w-full" onClick={handleSignOut} disabled={isLoading}>
           <LogOut className="mr-2 h-4 w-4" />
