@@ -4,13 +4,14 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { BottomNav } from "@/components/bottom-nav"
+import { ThemeProvider } from "@/components/theme-provider"
 
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "v0 App",
-  description: "Created with v0",
+  title: "Gastos Tracker",
+  description: "Track your expenses with ease",
   generator: "v0.app",
   icons: {
     icon: [
@@ -37,11 +38,19 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning is required for next-themes to work without errors
+    <html lang="en" suppressHydrationWarning>
       <body className={`font-sans antialiased`}>
-        {children}
-        <BottomNav />
-        <Analytics />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <BottomNav />
+          <Analytics />
+        </ThemeProvider>
       </body>
     </html>
   )
